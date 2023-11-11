@@ -1,0 +1,1 @@
+{"version": 0.6, "generator": "Overpass API 0.7.61.5 4133829e", "osm3s": {"timestamp_osm_base": "2023-10-31T20:44:20Z", "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."}, "elements": [{"type": "node", "id": 10808140531, "lat": 80.8022118, "lon": 47.4740279, "tags": {"aeroway": "helipad"}}]}

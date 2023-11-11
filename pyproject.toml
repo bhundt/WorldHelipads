@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "helinavdata"
+version = "0.1.0"
+description = ""
+authors = ["Bastian.hundt <bastian.hundt@gmx.de>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9,<3.13"
+google-cloud-storage = "^2.12.0"
+tqdm = "^4.66.1"
+pandas = "^2.1.2"
+pyarrow = "^14.0.0"
+fastparquet = "^2023.10.1"
+scikit-learn = "^1.3.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
