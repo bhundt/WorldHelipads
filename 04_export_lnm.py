@@ -8,12 +8,6 @@ import pandas as pd
 import config
 
 
-def extract_name(json_info: dict) -> str:
-    if "name" in json_info:
-        return json_info["name"]
-    return ""
-
-
 def extract_identifier(json_info: dict) -> str:
     if "icaoCode" in json_info:
         return json_info["icaoCode"]
@@ -23,7 +17,7 @@ def extract_identifier(json_info: dict) -> str:
 def make_pretty_description(source: str, json_info: dict) -> str:
     out = ""
     for key in json_info:
-        if key == "name" or key == "icaoCode":  # already in the name / identifier
+        if key == "icaoCode":  # already in the name / identifier
             continue
         if key == "elevation" and json_info[key] != "":
             out = out + f"Elevation: {json_info[key]}m MSL\n"
@@ -71,11 +65,11 @@ def create_longitude_boundaries():
 
 
 def assign_region(row, boundaries):
-    if boundaries["Region 1"]["Western Boundary"] <= row["Longitude"] <= boundaries["Region 1"]["Eastern Boundary"]:
+    if boundaries["Region 1"]["Western Boundary"] <= row["Longitude"] < boundaries["Region 1"]["Eastern Boundary"]:
         return "Region 1"
-    elif boundaries["Region 2"]["Western Boundary"] <= row["Longitude"] <= boundaries["Region 2"]["Eastern Boundary"]:
+    elif boundaries["Region 2"]["Western Boundary"] <= row["Longitude"] < boundaries["Region 2"]["Eastern Boundary"]:
         return "Region 2"
-    elif boundaries["Region 3"]["Western Boundary"] <= row["Longitude"] <= boundaries["Region 3"]["Eastern Boundary"]:
+    elif boundaries["Region 3"]["Western Boundary"] < row["Longitude"] <= boundaries["Region 3"]["Eastern Boundary"]:
         return "Region 3"
     else:
         raise ValueError(f"Could not assign region to {row['Longitude']}")
@@ -94,7 +88,7 @@ if __name__ == "__main__":
         intermediate_data.append(
             {
                 "Type": "Helipad",
-                "Name": extract_name(json_info),
+                "Name": "",
                 "Ident": extract_identifier(json_info),
                 "Latitude": row["lat"],
                 "Longitude": row["lon"],

@@ -21,7 +21,7 @@ hospital_query = "[out:json];(node[amenity=hospital]($bbox$);way[amenity=hospita
 offshore_query = '[out:json];(node[man_made~"offshore_platform|floating_storage"]($bbox$);way[man_made~"offshore_platform|floating_storage"]($bbox$);relation[man_made~"offshore_platform|floating_storage"]($bbox$);node["seamark:type"="platform"]($bbox$);way["seamark:type"="platform"]($bbox$);relation["seamark:type"="platform"]($bbox$););out center;'
 
 # merge settings
-radius_helipad_duplicate_m: float = 50
+radius_helipad_duplicate_m: float = 100
 radius_helipad_belongs_to_hospital_m: float = 500
 radius_helipad_belongs_to_offshore_m: float = 250
 
