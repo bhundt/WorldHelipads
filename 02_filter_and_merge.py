@@ -70,9 +70,10 @@ def transform_openaip_data(source_directory: str, destination_file: str) -> None
                         "OpenAIP",
                         json.dumps(
                             {
-                                "icaoCode:": entry["icaoCode"] if "icaoCode" in entry else "",
+                                "icaoCode": entry["icaoCode"] if "icaoCode" in entry else "",
                                 "name": entry["name"],
                                 "operator": "Civil" if entry["type"] == 7 else "Military",
+                                "elevation": entry["elevation"]["value"] if "elevation" in entry else "",
                             }
                         ),
                     ]
@@ -123,6 +124,7 @@ def transform_osm_helipad_data(source_directory: str, destination_file: str) -> 
                                 "surface": entry["tags"]["surface"] if "surface" in entry["tags"] else "",
                                 "operator": entry["tags"]["operator:type"] if "operator:type" in entry["tags"] else "",
                                 "description": entry["tags"]["description"] if "description" in entry["tags"] else "",
+                                "elevation": entry["tags"]["ele"] if "ele" in entry["tags"] else "",
                             }
                         ),
                     ]
@@ -130,31 +132,6 @@ def transform_osm_helipad_data(source_directory: str, destination_file: str) -> 
     df = pd.DataFrame(data=data, columns=["lat", "lon", "source", "info_json"])
     df.to_parquet(destination_file)
     df.to_csv(destination_file.replace(".parquet", ".csv"), index=False)
-
-
-def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> None:
-    """
-    Calculate the distance between two points on the Earth's surface using the Haversine formula.
-
-    Args:
-        lat1 (float): The latitude of the first point in degrees.
-        lon1 (float): The longitude of the first point in degrees.
-        lat2 (float): The latitude of the second point in degrees.
-        lon2 (float): The longitude of the second point in degrees.
-
-    Returns:
-        distance (float): The distance between the two points in meters.
-    """
-    # Convert latitude and longitude from degrees to radians
-    lat1, lon1, lat2, lon2 = radians(lat1), radians(lon1), radians(lat2), radians(lon2)
-
-    # Haversine formula
-    dlon, dlat = lon2 - lon1, lat2 - lat1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    distance = c * config.earth_radius_m
-
-    return distance
 
 
 def check_for_proximity(data1: pd.DataFrame, data2: pd.DataFrame, distance_threshold_m: float) -> pd.DataFrame:
@@ -166,15 +143,11 @@ def check_for_proximity(data1: pd.DataFrame, data2: pd.DataFrame, distance_thres
         [(radians(coord["lat"]), radians(coord["lon"])) for _, coord in data2.iterrows()], metric="haversine"
     )
 
-    for data1_entry_idx, _ in data1.iterrows():
-        data1.at[data1_entry_idx, "proximity"] = False
-
-    for data2_entry_idx, _ in data2.iterrows():
-        data2.at[data2_entry_idx, "proximity"] = False
+    data2["proximity"] = False
 
     # merge the data
     with tqdm(total=len(data1), desc="Checking for proximity") as pbar:
-        for data1_entry_idx, coord1 in data1.iterrows():
+        for _, coord1 in data1.iterrows():
             query_point = [(radians(coord1["lat"]), radians(coord1["lon"]))]
             indices = spatial_tree.query_radius(
                 query_point, r=distance_threshold_m / config.earth_radius_m, return_distance=False
@@ -187,69 +160,6 @@ def check_for_proximity(data1: pd.DataFrame, data2: pd.DataFrame, distance_thres
             pbar.update(1)
 
     return data2
-
-
-def _process_chunks_spatial_data(chunk) -> list:
-    """
-    Processes a chunk of spatial data by merging OpenAIP and OSM data based on a distance threshold.
-
-    Args:
-        chunk: A tuple containing the OpenAIP dataframe, OSM dataframe, distance threshold in meters, and a spatial tree.
-
-    Returns:
-        A list of merged data containing latitude, longitude, source, and info_json.
-
-    """
-    openaip_df, osm_df, distance_threshold_m = chunk
-
-    spatial_tree = spatial_tree = BallTree(
-        [(radians(coord["lat"]), radians(coord["lon"])) for _, coord in osm_df.iterrows()], metric="haversine"
-    )
-
-    for openaip_entry_idx, _ in openaip_df.iterrows():
-        openaip_df.at[openaip_entry_idx, "keep"] = True  # we always keep the openaip entry
-
-    for osm_entry_idx, _ in osm_df.iterrows():
-        osm_df.at[osm_entry_idx, "keep"] = True  # we keep evertything, only remove if we find a match in the next step
-
-    # merge the data
-    with tqdm(total=len(openaip_df), desc="Merging OpenAIP & OSM Data") as pbar:
-        for openaip_entry_idx, coord1 in openaip_df.iterrows():
-            query_point = [(radians(coord1["lat"]), radians(coord1["lon"]))]
-            indices = spatial_tree.query_radius(
-                query_point, r=distance_threshold_m / config.earth_radius_m, return_distance=False
-            )
-
-            for indices_for_query in indices:
-                for idx in indices_for_query:
-                    osm_df.at[idx, "keep"] = False
-
-            pbar.update(1)
-
-    # osm_df = check_for_proximity(openaip_df, osm_df, distance_threshold_m)
-
-    # combine the data, we always keep the openaip entry
-    data = []
-    for _, openaip_entry in openaip_df.iterrows():
-        data.append(
-            [
-                openaip_entry["lat"],
-                openaip_entry["lon"],
-                openaip_entry["source"],
-                openaip_entry["info_json"],
-            ]
-        )
-    for _, osm_entry in osm_df.iterrows():
-        if osm_entry["keep"]:
-            data.append(
-                [
-                    osm_entry["lat"],
-                    osm_entry["lon"],
-                    osm_entry["source"],
-                    osm_entry["info_json"],
-                ]
-            )
-    return data
 
 
 def merge_oaip_osm_helipads(
@@ -266,12 +176,7 @@ def merge_oaip_osm_helipads(
     Returns:
         None
     """
-    # openaip_data["keep"] = False
-    # osm_data["keep"] = False
-
-    # data = _process_chunks_spatial_data((openaip_data, osm_data, max_distance_m))
-
-    osm_df = check_for_proximity(openaip_data, osm_data, max_distance_m)
+    osm_proximity = check_for_proximity(openaip_data, osm_data, max_distance_m)
 
     # combine the data, we always keep the openaip entry
     data = []
@@ -284,7 +189,7 @@ def merge_oaip_osm_helipads(
                 openaip_entry["info_json"],
             ]
         )
-    for _, osm_entry in osm_df.iterrows():
+    for _, osm_entry in osm_proximity.iterrows():
         if not osm_entry["proximity"]:
             data.append(
                 [
@@ -306,47 +211,33 @@ def merge_oaip_osm_helipads(
         ],
     )
 
-    # we will have duplicates in the OSM data since we keep all entries that are not matched
+    # we could have duplicates in the OSM data since we keep all entries that are not matched
     df.drop_duplicates(subset=["lat", "lon"], inplace=True)
 
     return df
 
 
-def reduce_dataset_size(source_file: str, destination_file: str, max_entries: int) -> None:
-    """
-    Reduces the size of the dataset by randomly removing entries.
-
-    Args:
-        source_file (str): The path to the source file.
-        max_entries (int): The maximum number of entries to keep.
-
-    Returns:
-        None
-    """
-    df = pd.read_parquet(source_file)
-    df = df.sample(n=max_entries, random_state=42)
-    df.to_parquet(destination_file)
-    df.to_csv(destination_file.replace(".parquet", ".csv"), index=False)
-
-
 if __name__ == "__main__":
-    # filter_openaip_files_for_type("data/raw/openaip", "data/intermediate/openaip_filtered/")
+    # filter the openaip data individual jsons for the type we are interested in
     path_openaip_filtered = os.path.join(config.intermediate_folder, "openaip_filtered")
     filter_openaip_files_for_type(config.raw_data_openaip_folder, path_openaip_filtered)
 
+    # transform the openaip data into one data file with our own schema
     openaip_heli_output_file = os.path.join(config.intermediate_folder, "openaip_transformed.parquet")
     transform_openaip_data(
         path_openaip_filtered,
         openaip_heli_output_file,
     )
 
-    osm_heli_outpur_file = os.path.join(config.intermediate_folder, "osm_heli.parquet")
-    transform_osm_helipad_data(os.path.join(config.raw_data_osm_folder, "heli"), osm_heli_outpur_file)
+    # transform the osm data into one file and our own schema
+    osm_heli_output_file = os.path.join(config.intermediate_folder, "osm_heli.parquet")
+    transform_osm_helipad_data(os.path.join(config.raw_data_osm_folder, "heli"), osm_heli_output_file)
 
+    # merge the data
     merged_heli_output_file = os.path.join(config.intermediate_folder, "helipads.parquet")
     merged = merge_oaip_osm_helipads(
         pd.read_parquet(openaip_heli_output_file),
-        pd.read_parquet(osm_heli_outpur_file),
+        pd.read_parquet(osm_heli_output_file),
         max_distance_m=config.radius_helipad_duplicate_m,
     )
     merged.to_parquet(merged_heli_output_file)
