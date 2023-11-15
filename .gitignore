@@ -16,6 +16,9 @@
 *.xml
 *.parquet
 *.json
+data/
+
+__pycache__/
 
 ### macOS ###
 # General
