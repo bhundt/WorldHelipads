@@ -17,6 +17,7 @@
 *.parquet
 *.json
 data/
+*.zip
 
 __pycache__/
 
